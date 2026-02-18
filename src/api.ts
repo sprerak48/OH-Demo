@@ -1,9 +1,8 @@
 /**
  * API client for Oscar Health Demo backend.
- * All requests proxy through Vite dev server to /api.
+ * In dev: uses /api (Vite proxy). In production: same origin /api (Vercel serverless) or VITE_API_URL if set.
  */
-
-const BASE = '/api';
+const BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '/api';
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

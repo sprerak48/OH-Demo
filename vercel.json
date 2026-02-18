@@ -1,0 +1,13 @@
+{
+  "buildCommand": "npm run generate-data && npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/[...path].js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
+}

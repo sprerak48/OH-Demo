@@ -578,6 +578,11 @@ if (existsSync(distPath)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Oscar Health Demo running at http://localhost:${PORT}`);
-});
+// On Vercel, export app for serverless; do not listen.
+if (typeof process.env.VERCEL === 'undefined' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Oscar Health Demo running at http://localhost:${PORT}`);
+  });
+}
+
+export default app;
