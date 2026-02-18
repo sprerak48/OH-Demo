@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+  --oscar-pink: #e91e8c;
+  --oscar-teal: #14b8a6;
+  --slate-bg: #f8fafc;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--slate-bg);
+  color: #1e293b;
+}
