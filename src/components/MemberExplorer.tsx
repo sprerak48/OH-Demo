@@ -46,7 +46,9 @@ export default function MemberExplorer() {
     setSelected(m);
     setProfile(null);
     setProfileTab('overview');
-    getMember(m.member_id).then(setProfile);
+    getMember(m.member_id)
+      .then(setProfile)
+      .catch(() => setProfile(null));
   };
   const orch = profile?.orchestrated_output;
 

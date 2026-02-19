@@ -66,6 +66,11 @@ Three specialized agents coordinated by an Orchestrator:
 - **Outputs:** Expected MLR, Risk-Adjusted MLR, Total projected cost, Total risk revenue, Avg RAF
 - **Before vs After:** $ impact and bps improvement clearly labeled
 
+### Executive Chat (with optional LLM)
+- **Pattern-based (no key):** Answers structured questions (e.g. “Why is Texas Bronze leaking RAF?”, “Which plans have the worst adjusted MLR?”) using the query interpreter and risk/finance/compliance agents.
+- **With LLM:** Set `OPENAI_API_KEY` to enable natural-language answers about members and claims. The LLM receives a summary of the dataset (counts, by state/plan, RAF, HCC prevalence) and any pre-computed analysis, then returns a short answer, evidence bullets, and follow-ups. Supports any question about the data (e.g. “How many high-risk members in California?”, “What’s our total RX spend?”).
+- **Env (optional):** `OPENAI_API_KEY`, `OPENAI_BASE_URL` (default `https://api.openai.com/v1`), `OPENAI_MODEL` (default `gpt-4o-mini`).
+
 ## Data
 
 Synthetic data is generated with `npm run generate-data` and written to `data/`:
@@ -96,3 +101,11 @@ No PHI, no real identifiers. Deterministic seeding for reproducibility.
 - **API proxy:** Vite proxies `/api` to the backend during development
 - **Separation of concerns:** All aggregations, filters, and simulations run on the server
 - **Extensible:** Code structured for future agentic workflows
+
+## Deploying to Vercel
+
+- Connect the repo to Vercel; the project uses **vercel.json** with a custom build and API.
+- **Build command** must run data generation and the frontend build: `npm run generate-data && npm run build` (set in vercel.json).
+- **Output directory:** `dist` (static frontend). All `/api/*` requests are handled by the serverless function in **api/[...path].js**, which runs the Express app.
+- **Environment variables (optional):** `OPENAI_API_KEY` for Executive Chat LLM; add in Vercel project Settings → Environment Variables.
+- After deploy, check **https://your-app.vercel.app/api/health** — it should return `{ ok: true, dataLoaded: true, members, claims }`. If `dataLoaded` is false, the build did not create `data/` (ensure build command includes `generate-data`).

@@ -2,6 +2,7 @@
  * Oscar Health Demo API
  * All metrics computed server-side. Risk adjustment logic in risk-adjustment.js.
  */
+import 'dotenv/config';
 
 import express from 'express';
 import cors from 'cors';
@@ -19,23 +20,34 @@ import {
 import { runAgent, runAgentBatch } from './risk-adjustment-agent.js';
 import { runOrchestrator } from './orchestrator.js';
 import { runChatQuery } from './chat-orchestrator.js';
+import { buildDataContextSummary, runChatWithLLM } from './chat-llm.js';
 import { validateUpload, runUploadAnalysis } from './upload-analyzer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const DATA_DIR = join(__dirname, '..', 'data');
+// Vercel serverless runs with cwd = project root; local runs with server/ as __dirname parent
+const DATA_DIR = process.env.VERCEL ? join(process.cwd(), 'data') : join(__dirname, '..', 'data');
 
 function loadData() {
-  const membersPath = join(DATA_DIR, 'members.json');
-  const claimsPath = join(DATA_DIR, 'claims.json');
-  if (!existsSync(membersPath) || !existsSync(claimsPath)) {
-    console.error('Missing data files. Run: npm run generate-data');
-    process.exit(1);
+  const dirsToTry = process.env.VERCEL
+    ? [join(process.cwd(), 'data'), join(__dirname, '..', 'data')]
+    : [DATA_DIR];
+  for (const dir of dirsToTry) {
+    const membersPath = join(dir, 'members.json');
+    const claimsPath = join(dir, 'claims.json');
+    if (existsSync(membersPath) && existsSync(claimsPath)) {
+      return {
+        members: JSON.parse(readFileSync(membersPath, 'utf-8')),
+        claims: JSON.parse(readFileSync(claimsPath, 'utf-8')),
+      };
+    }
   }
-  return {
-    members: JSON.parse(readFileSync(membersPath, 'utf-8')),
-    claims: JSON.parse(readFileSync(claimsPath, 'utf-8')),
-  };
+  if (process.env.VERCEL) {
+    console.warn('Missing data on Vercel. Ensure buildCommand includes: npm run generate-data');
+    return { members: [], claims: [] };
+  }
+  console.error('Missing data files. Run: npm run generate-data');
+  process.exit(1);
 }
 
 const { members, claims } = loadData();
@@ -55,6 +67,11 @@ members.forEach((m) => {
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// --- HEALTH (for Vercel / deployment checks) ---
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, dataLoaded: members.length > 0, members: members.length, claims: claims.length });
+});
 
 // --- DASHBOARD ---
 
@@ -422,7 +439,7 @@ app.post('/api/upload/analyze', (req, res) => {
 
 // --- CHAT ---
 
-app.post('/api/chat/query', (req, res) => {
+app.post('/api/chat/query', async (req, res) => {
   const { question } = req.body || {};
   if (!question || typeof question !== 'string') {
     return res.status(400).json({ error: 'Missing question' });
@@ -446,8 +463,26 @@ app.post('/api/chat/query', (req, res) => {
       mlr_improvement_bps: Math.round((totalAllowed / (totalPremium + baseRev) - totalAllowed / (totalPremium + newRev)) * 10000),
     };
   };
-  const response = runChatQuery(question, members, claimByMember, memberRAF, runSim);
-  res.json(response);
+  const structuredResponse = runChatQuery(question, members, claimByMember, memberRAF, runSim);
+  const dataSummary = buildDataContextSummary(members, claims, claimByMember, memberRAF);
+
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const llmResponse = await runChatWithLLM(question, dataSummary, structuredResponse);
+      return res.json({
+        ...structuredResponse,
+        shortAnswer: llmResponse.shortAnswer,
+        evidence: llmResponse.evidence,
+        whyItMatters: llmResponse.whyItMatters,
+        recommendedAction: llmResponse.recommendedAction,
+        followUpSuggestions: llmResponse.followUpSuggestions.length ? llmResponse.followUpSuggestions : structuredResponse.followUpSuggestions,
+      });
+    } catch (err) {
+      console.error('Chat LLM error:', err.message);
+      // Fall through to structured-only response
+    }
+  }
+  res.json(structuredResponse);
 });
 
 // --- RISK EXPLORER ---
