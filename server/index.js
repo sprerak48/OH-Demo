@@ -1,5 +1,5 @@
 /**
- * Oscar Health Demo API
+ * Health Insights API
  * All metrics computed server-side. Risk adjustment logic in risk-adjustment.js.
  */
 import 'dotenv/config';
@@ -21,7 +21,7 @@ import { runAgent, runAgentBatch } from './risk-adjustment-agent.js';
 import { runOrchestrator } from './orchestrator.js';
 import { runChatQuery } from './chat-orchestrator.js';
 import { buildDataContextSummary, runChatWithLLM } from './chat-llm.js';
-import { validateUpload, runUploadAnalysis } from './upload-analyzer.js';
+import { validateUpload, runUploadAnalysis, parseMembersCsv, parseClaimsCsv } from './upload-analyzer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,7 +86,13 @@ if (process.env.VERCEL) {
 
 // --- HEALTH (for Vercel / deployment checks) ---
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, dataLoaded: members.length > 0, members: members.length, claims: claims.length });
+  res.json({
+    ok: true,
+    dataLoaded: members.length > 0,
+    members: members.length,
+    claims: claims.length,
+    llmEnabled: !!process.env.OPENAI_API_KEY,
+  });
 });
 
 // --- DASHBOARD ---
@@ -440,9 +446,22 @@ app.get('/api/agent/summary', (req, res) => {
 // --- UPLOAD & ANALYZE ---
 
 app.post('/api/upload/analyze', (req, res) => {
-  const { members: rawMembers, claims: rawClaims } = req.body || {};
-  const uploadMembers = Array.isArray(rawMembers) ? rawMembers : [];
-  const uploadClaims = Array.isArray(rawClaims) ? rawClaims : [];
+  const body = req.body || {};
+  let uploadMembers = [];
+  let uploadClaims = [];
+
+  if (body.format === 'csv' && body.membersCsv != null && body.claimsCsv != null) {
+    try {
+      uploadMembers = parseMembersCsv(body.membersCsv);
+      uploadClaims = parseClaimsCsv(body.claimsCsv);
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid CSV', message: err.message });
+    }
+  } else {
+    uploadMembers = Array.isArray(body.members) ? body.members : [];
+    uploadClaims = Array.isArray(body.claims) ? body.claims : [];
+  }
+
   const validation = validateUpload(uploadMembers, uploadClaims);
   if (!validation.valid) {
     return res.status(400).json({ error: 'Invalid upload', details: validation.errors });
@@ -635,7 +654,7 @@ if (existsSync(distPath)) {
 // On Vercel, export app for serverless; do not listen.
 if (typeof process.env.VERCEL === 'undefined' || !process.env.VERCEL) {
   app.listen(PORT, () => {
-    console.log(`Oscar Health Demo running at http://localhost:${PORT}`);
+    console.log(`Health Insights running at http://localhost:${PORT}`);
   });
 }
 

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { postChatQuery } from '../api';
+import { postChatQuery, getHealth } from '../api';
 import type { ChatResponse } from '../api';
 
 const SUGGESTED_QUESTIONS = [
@@ -15,7 +15,12 @@ export default function ExecutiveChat() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [llmEnabled, setLlmEnabled] = useState<boolean | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getHealth().then((h) => setLlmEnabled(h.llmEnabled ?? false)).catch(() => setLlmEnabled(false));
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,7 +44,14 @@ export default function ExecutiveChat() {
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)] max-h-[700px]">
       <div className="mb-4">
-        <h2 className="text-xl font-semibold text-slate-900">Executive Risk Intelligence</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-xl font-semibold text-slate-900">Executive Risk Intelligence</h2>
+          {llmEnabled === true && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Conversational AI (OpenAI)
+            </span>
+          )}
+        </div>
         <p className="text-sm text-slate-500">Agentic query layer over real calculations. Ask about RAF leakage, revenue at risk, or what-if scenarios.</p>
       </div>
 

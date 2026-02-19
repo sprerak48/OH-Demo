@@ -1,6 +1,7 @@
 /**
  * Runs dashboard-style analysis on uploaded members + claims.
  * Same calculations as main app; no persistence.
+ * Supports JSON or CSV upload (same column names as generated data).
  */
 
 import {
@@ -11,6 +12,121 @@ import {
 } from './risk-adjustment.js';
 import { runAgentBatch } from './risk-adjustment-agent.js';
 import { runOrchestrator } from './orchestrator.js';
+
+/** Normalize CSV header to lowercase with underscores (e.g. "Member ID" -> "member_id"). */
+function normalizeHeader(h) {
+  return String(h).trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+/** Parse CSV string (header row, comma-separated, optional quotes) into array of objects. */
+function parseCSV(csvText) {
+  const lines = (csvText || '').trim().split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length === 0) return [];
+  const rawHeaders = parseCSVLine(lines[0]);
+  const headers = rawHeaders.map(normalizeHeader);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i]);
+    const row = {};
+    headers.forEach((h, j) => {
+      row[h] = values[j] !== undefined ? values[j] : '';
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseCSVLine(line) {
+  const out = [];
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === '"') {
+      let end = i + 1;
+      while (end < line.length) {
+        const next = line.indexOf('"', end);
+        if (next === -1) break;
+        if (line[next + 1] === '"') {
+          end = next + 2;
+          continue;
+        }
+        out.push(line.slice(i + 1, next).replace(/""/g, '"'));
+        i = next + 1;
+        if (line[i] === ',') i++;
+        break;
+      }
+      if (end >= line.length) {
+        out.push(line.slice(i + 1).replace(/""/g, '"'));
+        break;
+      }
+    } else {
+      const comma = line.indexOf(',', i);
+      if (comma === -1) {
+        out.push(line.slice(i).trim());
+        break;
+      }
+      out.push(line.slice(i, comma).trim());
+      i = comma + 1;
+    }
+  }
+  return out;
+}
+
+const MEMBER_NUMERIC = new Set(['age', 'risk_score', 'member_months']);
+const MEMBER_BOOL = new Set(['chronic_condition_flag']);
+const CLAIM_NUMERIC = new Set(['allowed_amount']);
+
+/** Parse members CSV into same shape as JSON (required: member_id, age, gender, state, plan_type, risk_score). */
+export function parseMembersCsv(csvText) {
+  const rows = parseCSV(csvText);
+  return rows.map((r) => {
+    const out = {
+      member_id: String(r.member_id ?? '').trim(),
+      age: coerceNum(r.age, 0),
+      gender: String(r.gender ?? '').trim(),
+      state: String(r.state ?? '').trim(),
+      plan_type: String(r.plan_type ?? '').trim(),
+      risk_score: coerceNum(r.risk_score, 0),
+      chronic_condition_flag: coerceBool(r.chronic_condition_flag),
+      member_months: coerceNum(r.member_months, 12),
+    };
+    const hcc = r.hcc_codes;
+    if (hcc !== undefined && hcc !== null && hcc !== '') {
+      if (typeof hcc === 'string') {
+        out.hcc_codes = hcc.split(/[|,;]/).map((c) => c.trim()).filter(Boolean);
+      } else {
+        out.hcc_codes = Array.isArray(hcc) ? hcc : [];
+      }
+    } else {
+      out.hcc_codes = [];
+    }
+    return out;
+  });
+}
+
+/** Parse claims CSV into same shape as JSON (required: claim_id, member_id, service_date, claim_type, allowed_amount). */
+export function parseClaimsCsv(csvText) {
+  const rows = parseCSV(csvText);
+  return rows.map((r) => ({
+    claim_id: String(r.claim_id ?? '').trim(),
+    member_id: String(r.member_id ?? '').trim(),
+    service_date: String(r.service_date ?? '').trim(),
+    claim_type: String(r.claim_type ?? 'OP').trim(),
+    allowed_amount: coerceNum(r.allowed_amount, 0),
+  }));
+}
+
+function coerceNum(v, def) {
+  if (v === undefined || v === null || v === '') return def;
+  const n = Number(String(v).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : def;
+}
+
+function coerceBool(v) {
+  if (v === undefined || v === null || v === '') return false;
+  const s = String(v).toLowerCase().trim();
+  if (s === 'true' || s === '1' || s === 'yes') return true;
+  return false;
+}
 
 function buildClaimByMember(claims) {
   const out = {};

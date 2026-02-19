@@ -1,8 +1,18 @@
 /**
- * API client for Oscar Health Demo backend.
+ * API client for Health Insights backend.
  * In dev: uses /api (Vite proxy). In production: same origin /api (Vercel serverless) or VITE_API_URL if set.
  */
 const BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '/api';
+
+export interface HealthResponse {
+  ok: boolean;
+  dataLoaded: boolean;
+  members: number;
+  claims: number;
+  llmEnabled?: boolean;
+}
+
+export const getHealth = () => fetchApi<HealthResponse>('/health');
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -185,3 +195,8 @@ export const getRiskExplorer = (params: Record<string, string | number | undefin
   Object.entries(params).forEach(([k, v]) => v != null && v !== '' && q.set(k, String(v)));
   return fetchApi<RiskExplorerData>(`/risk-explorer?${q}`);
 };
+
+/** Upload members + claims (JSON arrays) or CSV strings. Returns dashboard-style analysis. */
+export function postUploadAnalyze(payload: { members?: unknown[]; claims?: unknown[] } | { format: 'csv'; membersCsv: string; claimsCsv: string }) {
+  return fetchApi<DashboardData>('/upload/analyze', { method: 'POST', body: JSON.stringify(payload) });
+}

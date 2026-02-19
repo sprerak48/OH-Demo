@@ -1,4 +1,4 @@
-# Oscar Health Demo | Payer Operations
+# Health Insights | Payer Operations
 
 A production-quality demo web app for healthcare payer operations. Users can explore synthetic Oscar Health–style data, apply filters, view real-time computed metrics, and run what-if simulations.
 
@@ -69,7 +69,7 @@ Three specialized agents coordinated by an Orchestrator:
 ### Executive Chat (with optional LLM)
 - **Pattern-based (no key):** Answers structured questions (e.g. “Why is Texas Bronze leaking RAF?”, “Which plans have the worst adjusted MLR?”) using the query interpreter and risk/finance/compliance agents.
 - **With LLM:** Set `OPENAI_API_KEY` to enable natural-language answers about members and claims. The LLM receives a summary of the dataset (counts, by state/plan, RAF, HCC prevalence) and any pre-computed analysis, then returns a short answer, evidence bullets, and follow-ups. Supports any question about the data (e.g. “How many high-risk members in California?”, “What’s our total RX spend?”).
-- **Env (optional):** `OPENAI_API_KEY`, `OPENAI_BASE_URL` (default `https://api.openai.com/v1`), `OPENAI_MODEL` (default `gpt-4o-mini`).
+- **Env (optional):** `OPENAI_API_KEY`, `OPENAI_BASE_URL` (default `https://api.openai.com/v1`), `OPENAI_MODEL` (default `gpt-4o-mini`). Copy `.env.example` to `.env` and set your key locally; on Vercel add `OPENAI_API_KEY` in Project → Settings → Environment Variables.
 
 ## Data
 

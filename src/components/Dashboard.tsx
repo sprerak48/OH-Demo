@@ -13,27 +13,53 @@ import {
 import { getDashboard } from '../api';
 import type { DashboardData } from '../api';
 
-export default function Dashboard() {
+interface DashboardProps {
+  overrideData?: DashboardData | null;
+  onClearOverride?: () => void;
+}
+
+export default function Dashboard({ overrideData, onClearOverride }: DashboardProps) {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!overrideData);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (overrideData) {
+      setData(overrideData);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     getDashboard()
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [overrideData]);
 
-  if (loading) return <div className="text-slate-500">Loading dashboard...</div>;
+  const effectiveData = overrideData ?? data;
+  if (loading && !overrideData) return <div className="text-slate-500">Loading dashboard...</div>;
   if (error) return <div className="text-red-600">Error: {error}</div>;
-  if (!data) return null;
+  if (!effectiveData) return null;
 
-  const { kpis, claimsOverTime, costByPlanType, riskDistribution, rafByPlanType, rafByState, riskRevenueByPlan, executive } = data;
+  const { kpis, claimsOverTime, costByPlanType, riskDistribution, rafByPlanType, rafByState, riskRevenueByPlan, executive } = effectiveData;
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-slate-900">Dashboard</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-xl font-semibold text-slate-900">Dashboard</h2>
+        {overrideData && onClearOverride && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <span>Showing uploaded data</span>
+            <button
+              type="button"
+              onClick={onClearOverride}
+              className="font-medium text-amber-700 hover:underline"
+            >
+              Clear & use server data
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Core KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">

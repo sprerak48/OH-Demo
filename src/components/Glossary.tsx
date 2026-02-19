@@ -4,7 +4,7 @@ export default function Glossary() {
       <div>
         <h2 className="text-2xl font-semibold text-slate-900 mb-1">Glossary</h2>
         <p className="text-slate-600">
-          Data definitions, calculation methods, and how to use each view in the Oscar Health Demo.
+          Data definitions, calculation methods, and how to use each view in Health Insights.
         </p>
       </div>
 
